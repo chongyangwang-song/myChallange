@@ -1,6 +1,5 @@
 import random
-import copy
-import time
+import collections
 
 import sys
 # while True:
@@ -76,25 +75,27 @@ class hostList:
 
     def search_and_add(self, vm_name,vm_id):
         while True:
+
             if len(self.allHost) == 0:
                 self.addHost()
             length = len(self.allHost)
             res = self.allHost[length-1].putvm(vm_name)
             if res != 'NULL':
                 if res == 'A':
-                    self.out.append('('+str(length-1)+','+' A'+')')
+                    self.out.append([length-1,'A'])
                     # self.id_info[vm_id] = [vm_name, i, 'A']
                     return
                 elif res == 'B':
-                    self.out.append('('+str(length-1)+','+' B'+')')
+                    self.out.append([length-1, 'B'])
                     # self.id_info[vm_id] = [vm_name, i, 'B']
                     return
                 else:
-                    self.out.append('('+str(length-1)+')')
+                    self.out.append([length-1])
                     # self.id_info[vm_id] = [vm_name, i, 'ALL']
                     return
             else:
                 self.addHost()
+
 
 
     def del_vm(self, id):
@@ -137,7 +138,8 @@ def main():
     my_hostList = hostList()
     out = []
     index = 0
-    for a,day in enumerate(data):
+    index_id = {}
+    for a, day in enumerate(data):
         for line in day:
             add_or_del = line.split(',')[0][1:]
             ID = int(line.split(',')[-1][:-1])
@@ -147,21 +149,37 @@ def main():
             # else:
             #     # my_hostList.del_vm(ID)
             #     print('test')
+        start_id = index
         temp = index
         index = len(my_hostList.allHost)
-        temp_host_list = my_hostList.allHost[temp:index]
-        temp_dict = {}
-        for item in temp_host_list:
-            if item.name not  in temp_dict.keys():
-                temp_dict[item.name] = 1
+        name_indies = collections.OrderedDict()
+        for idx, item in zip(range(temp, index), my_hostList.allHost[temp:index]):
+            if item.name not in name_indies.keys():
+                name_indies[item.name] = [idx]
             else:
-                temp_dict[item.name] += 1
-        out.append('(purchase,'+' '+str(len(temp_dict.keys()))+')')
-        for k,v in temp_dict.items():
-            out.append('('+str(k)+','+' '+str(v)+')')
+                name_indies[item.name].append(idx)
+
+        out.append('(purchase,' + ' ' + str(len(name_indies.keys())) + ')')
+        for k, v in name_indies.items():
+            out.append('(' + str(k) + ',' + ' ' + str(len(v)) + ')')
+
         out.append('(migration, 0)')
+
+        for k, v in name_indies.items():
+            for item in v:
+                index_id[item] = start_id
+                start_id += 1
         operate = my_hostList.out
-        out += operate
+        new_operate = []
+        for line in operate:
+            idx = line[0]
+            new_index = index_id[idx]
+            if len(line) == 1:
+                new_operate.append('(' + str(new_index) + ')')
+            else:
+                new_operate.append('(' + str(new_index) + ',' + ' ' + line[1] + ')')
+
+        out += new_operate
         my_hostList.out.clear()
         # if a%100 == 0:
         #     print('over')
@@ -170,7 +188,7 @@ def main():
     #     f.write('\n'.join(out))
     # end = time.time()
     # print('time consume',start-end)
-    sys.stdout.write('\n'.join(out)+'\n')
+    sys.stdout.write('\n'.join(out))  # 借
     sys.stdout.flush()
 if __name__ == "__main__":
     main()
