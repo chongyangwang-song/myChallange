@@ -1,15 +1,23 @@
 import random
-import collections
 import time
 import sys
+from collections import defaultdict
+from collections import OrderedDict
 start = time.time()
-SERVER = True
-TIME = False
-# while True:
-#     line = sy
+SERVER = False
+TIME = True
+
 host_dict = {}
 vm_dict = {}
+host_cpu_mem = defaultdict(list)
+vm_cpu_mem = defaultdict(list)
+host_cpu_mem_sorted = OrderedDict()
+vm_cpu_mem_sorted = OrderedDict()
+
+SPLIT = 10
+
 if not SERVER:
+
     PATH = '/data1/HUAWEI/training-1.txt'
     with open(PATH) as f:
         lines = f.readlines()
@@ -23,13 +31,22 @@ if not SERVER:
         host_name = temp[0][1:]
         val = [int(temp[1]),int(temp[2]),int(temp[3]),int(temp[4][:-1])]
         host_dict[host_name] = val
+        host_cpu_mem[int(temp[1])/int(temp[2])].append(host_name)
     vm_num = int(lines[host_num+1])
     for i in range(host_num+2,host_num+2+vm_num):
         line = lines[i]
         temp = line.split(',')
         vm_name = temp[0][1:]
         val = [int(temp[1]), int(temp[2]),int(temp[3][:-1])]
+        vm_cpu_mem[int(temp[1]) / int(temp[2])].append(vm_name)
         vm_dict[vm_name] = val
+
+    host_cpu_mem_keys = list(host_cpu_mem.keys())
+    for i in sorted(host_cpu_mem_keys):
+        host_cpu_mem_sorted[i] = host_cpu_mem[i]
+    vm_cpu_mem_keys = list(vm_cpu_mem.keys())
+    for i in sorted(vm_cpu_mem_keys):
+        vm_cpu_mem_sorted[i] = vm_cpu_mem[i]
     day_num = int(lines[host_num+2+vm_num])
     data_index = host_num+2+vm_num+1
     data = []
@@ -49,6 +66,7 @@ else:
         temp = line.split(',')
         host_name = temp[0][1:]
         val = [int(temp[1]), int(temp[2]), int(temp[3]), int(temp[4][:-1])]
+        host_cpu_mem[int(temp[1]) / int(temp[2])].append(host_name)
         host_dict[host_name] = val
 
     vm_num = sys.stdin.readline().strip()
@@ -59,6 +77,14 @@ else:
         vm_name = temp[0][1:]
         val = [int(temp[1]), int(temp[2]), int(temp[3][:-1])]
         vm_dict[vm_name] = val
+        vm_cpu_mem[int(temp[1]) / int(temp[2])].append(vm_name)
+
+    host_cpu_mem_keys = list(host_cpu_mem.keys())
+    for i in sorted(host_cpu_mem_keys):
+        host_cpu_mem_sorted[i] = host_cpu_mem[i]
+    vm_cpu_mem_keys = list(vm_cpu_mem.keys())
+    for i in sorted(vm_cpu_mem_keys):
+        vm_cpu_mem_sorted[i] = vm_cpu_mem[i]
     day_num = sys.stdin.readline().strip()
     day_num = int(day_num)
     # data_index = host_num+2+vm_num+1
@@ -71,9 +97,48 @@ else:
             line = sys.stdin.readline().strip()
             data_i.append(line)
         data.append(data_i)
+
 host_dict_keys_list = list(host_dict.keys())
 HOST_DICT_LEN = len(host_dict_keys_list)
+#######划分服务器#######################################################################
+host_split_step = int(len(host_cpu_mem)/SPLIT)
+host_split_list = []
+host_cpu_mem_sorted_keys = list(host_cpu_mem_sorted.keys())
+host_cpu_mem_sorted_keys_split = []
+for i in range(SPLIT-1):
+    host_cpu_mem_sorted_keys_split.append(host_cpu_mem_sorted_keys[host_split_step*i:host_split_step*(i+1)])
+host_cpu_mem_sorted_keys_split.append(host_cpu_mem_sorted_keys[host_split_step*(SPLIT-1):])
+host_split_list = []
+for i in host_cpu_mem_sorted_keys_split:
+    temp = []
+    for j in i:
+        temp += host_cpu_mem_sorted[j]
+    host_split_list.append(temp)
 
+######划分虚拟机########################################################################
+vm_split_step = int(len(vm_cpu_mem)/SPLIT)
+vm_split_list = []
+vm_cpu_mem_sorted_keys = list(vm_cpu_mem_sorted.keys())
+vm_cpu_mem_sorted_keys_split = []
+for i in range(SPLIT-1):
+    vm_cpu_mem_sorted_keys_split.append(vm_cpu_mem_sorted_keys[vm_split_step*i:vm_split_step*(i+1)])
+vm_cpu_mem_sorted_keys_split.append(vm_cpu_mem_sorted_keys[vm_split_step*(SPLIT-1):])
+vm_split_list = []
+for i in vm_cpu_mem_sorted_keys_split:
+    temp = []
+    for j in i:
+        temp += vm_cpu_mem_sorted[j]
+    vm_split_list.append(temp)
+#######建立名称等级索引#################################################################
+host_rank = {}
+for idx,i in enumerate(host_split_list):
+    for j in i:
+        host_rank[j] = idx
+vm_rank = {}
+for idx,i in enumerate(vm_split_list):
+    for j in i:
+        vm_rank[j] = idx
+    
 class Host:
     def __init__(self, name):
         self.name = name
@@ -143,20 +208,26 @@ class hostList:
         self.allHost = []
         self.id_info = {}
         self.out = []
+        self.rank_store = []
+        for i in range(SPLIT):
+            self.rank_store.append([])
 
     def addHost(self,vm_name):
-        random.shuffle(host_dict_keys_list)
-        for i in range(HOST_DICT_LEN):
-            host = Host(host_dict_keys_list[i])
+        rank = vm_rank[vm_name]
+        while True:
+            select = random.randint(0,len(host_split_list[rank])-1)
+            host_name = host_split_list[rank][select]
+            host = Host(host_name)
             if host.available(vm_name):
                 break
         self.allHost.append(host)
+        self.rank_store[rank].append(len(self.allHost)-1)
 
     def search_and_add(self, vm_name,vm_id):
         if len(self.allHost) == 0:
             self.addHost(vm_name)
-        length = len(self.allHost)
-        for i in range(length):
+        rank = vm_rank[vm_name]
+        for i in self.rank_store[rank]:
             res = self.allHost[i].putvm(vm_name)
             if res != 'NULL':
                 self.upate_out(i,res,vm_id,vm_name)
@@ -199,7 +270,7 @@ def main():
         start_id = index
         temp = index
         index = len(my_hostList.allHost)
-        name_indies = collections.OrderedDict()
+        name_indies = OrderedDict()
         for idx,item in zip(range(temp,index),my_hostList.allHost[temp:index]):
             if item.name not in name_indies.keys():
                 name_indies[item.name] = [idx]
