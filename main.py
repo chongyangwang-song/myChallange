@@ -14,7 +14,7 @@ vm_cpu_mem = defaultdict(list)
 host_cpu_mem_sorted = OrderedDict()
 vm_cpu_mem_sorted = OrderedDict()
 
-SPLIT = 10
+SPLIT = 9
 
 if not SERVER:
 
@@ -114,7 +114,9 @@ for i in host_cpu_mem_sorted_keys_split:
     for j in i:
         temp += host_cpu_mem_sorted[j]
     host_split_list.append(temp)
-
+#按照价格排序
+for i,item in enumerate(host_split_list):
+    host_split_list[i] = sorted(item,key=lambda host:host_dict[host][2])
 ######划分虚拟机########################################################################
 vm_split_step = int(len(vm_cpu_mem)/SPLIT)
 vm_split_list = []
@@ -214,9 +216,11 @@ class hostList:
 
     def addHost(self,vm_name):
         rank = vm_rank[vm_name]
-        while True:
-            select = random.randint(0,len(host_split_list[rank])-1)
-            host_name = host_split_list[rank][select]
+        # select = random.randint(0,len(host_split_list[rank])-1)
+        # host_name = host_split_list[rank][select]
+        # host = Host(host_name)
+        
+        for host_name in host_split_list[rank]:
             host = Host(host_name)
             if host.available(vm_name):
                 break
