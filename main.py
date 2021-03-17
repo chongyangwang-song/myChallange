@@ -14,8 +14,8 @@ vm_cpu_mem = defaultdict(list)
 host_cpu_mem_sorted = OrderedDict()
 vm_cpu_mem_sorted = OrderedDict()
 
-SPLIT = 9
-
+SPLIT = 3
+RATIO = 1 ##使用百分之八十
 if not SERVER:
 
     PATH = '/data1/HUAWEI/training-1.txt'
@@ -101,9 +101,10 @@ else:
 host_dict_keys_list = list(host_dict.keys())
 HOST_DICT_LEN = len(host_dict_keys_list)
 #######划分服务器#######################################################################
-host_split_step = int(len(host_cpu_mem)/SPLIT)
+host_split_step = int(len(host_cpu_mem)*RATIO/SPLIT)
 host_split_list = []
-host_cpu_mem_sorted_keys = list(host_cpu_mem_sorted.keys())
+LEN_KEYS = len(host_cpu_mem_sorted.keys())
+host_cpu_mem_sorted_keys = list(host_cpu_mem_sorted.keys())[int(((1-RATIO)/2)*LEN_KEYS):int((1-(1-RATIO)/2)*LEN_KEYS)]
 host_cpu_mem_sorted_keys_split = []
 for i in range(SPLIT-1):
     host_cpu_mem_sorted_keys_split.append(host_cpu_mem_sorted_keys[host_split_step*i:host_split_step*(i+1)])
@@ -148,18 +149,20 @@ class Host:
         self.B_cpu = host_dict[name][0]/2
         self.A_mem = host_dict[name][1]/2
         self.B_mem = host_dict[name][1]/2
-
-    def putvm(self,vm):
-        info = vm_dict[vm]
+        self.contains_vm = []
+    def putvm(self,vm_name,vm_id):
+        info = vm_dict[vm_name]
         cpu,mem,core = info
         if core == 0:
             if self.A_cpu >=cpu and self.A_mem>=mem: #优先放A节点
                 self.A_cpu -= cpu
                 self.A_mem -= mem
+                self.contains_vm.append((vm_name,vm_id,'A'))
                 return 'A'
             elif self.B_cpu>=cpu and self.B_mem>=mem:
                 self.B_cpu -= cpu
                 self.B_mem -= mem
+                self.contains_vm.append((vm_name, vm_id, 'B'))
                 return 'B'
             else:
                 return 'NULL'
@@ -169,6 +172,7 @@ class Host:
                 self.B_cpu -= cpu/2
                 self.A_mem -= mem/2
                 self.B_mem -= mem/2
+                self.contains_vm.append((vm_name, vm_id, 'ALL'))
                 return 'ALL'
             else:
                 return 'NULL'
@@ -189,20 +193,23 @@ class Host:
             else:
                 return False
 
-    def delvm(self,vm,type):
+    def delvm(self,vm,id,type):
         info = vm_dict[vm]
         cpu, mem, core = info
         if type == 'A':
             self.A_cpu += cpu
             self.A_mem += mem
+            self.contains_vm.remove((vm,id,'A'))
         elif type == 'B':
             self.B_cpu += cpu
             self.B_mem += mem
+            self.contains_vm.remove((vm,id,'B'))
         else:
             self.A_cpu += cpu/2
             self.A_mem += mem/2
             self.B_cpu += cpu/2
             self.B_mem += mem/2
+            self.contains_vm.remove((vm,id,'ALL'))
 
 class hostList:
 
@@ -232,12 +239,12 @@ class hostList:
             self.addHost(vm_name)
         rank = vm_rank[vm_name]
         for i in self.rank_store[rank]:
-            res = self.allHost[i].putvm(vm_name)
+            res = self.allHost[i].putvm(vm_name,vm_id)
             if res != 'NULL':
                 self.upate_out(i,res,vm_id,vm_name)
                 return
         self.addHost(vm_name)
-        res = self.allHost[-1].putvm(vm_name)
+        res = self.allHost[-1].putvm(vm_name,vm_id)
         self.upate_out(len(self.allHost)-1,res,vm_id,vm_name)
 
 
@@ -254,7 +261,7 @@ class hostList:
 
     def del_vm(self, id):
         vm_name,host_id,type = self.id_info[id]
-        self.allHost[host_id].delvm(vm_name, type)
+        self.allHost[host_id].delvm(vm_name,id, type)
 
 def main():
     my_hostList = hostList()
