@@ -4,8 +4,8 @@ import sys
 from collections import defaultdict
 from collections import OrderedDict
 start = time.time()
-SERVER = False
-TIME = True
+SERVER = True
+TIME = False
 
 host_dict = {}
 vm_dict = {}
@@ -14,11 +14,11 @@ vm_cpu_mem = defaultdict(list)
 host_cpu_mem_sorted = OrderedDict()
 vm_cpu_mem_sorted = OrderedDict()
 
-SPLIT = 3
+SPLIT = 1
 RATIO = 1 ##使用百分之八十
 if not SERVER:
 
-    PATH = '/data1/HUAWEI/training-1.txt'
+    PATH = 'E:\HW_JYTZS\\training-data/training-1.txt'
     with open(PATH) as f:
         lines = f.readlines()
 
@@ -102,7 +102,7 @@ host_dict_keys_list = list(host_dict.keys())
 HOST_DICT_LEN = len(host_dict_keys_list)
 #######划分服务器#######################################################################
 host_split_step = int(len(host_cpu_mem)*RATIO/SPLIT)
-host_split_list = []
+# host_split_list = []
 LEN_KEYS = len(host_cpu_mem_sorted.keys())
 host_cpu_mem_sorted_keys = list(host_cpu_mem_sorted.keys())[int(((1-RATIO)/2)*LEN_KEYS):int((1-(1-RATIO)/2)*LEN_KEYS)]
 host_cpu_mem_sorted_keys_split = []
@@ -120,7 +120,7 @@ for i,item in enumerate(host_split_list):
     host_split_list[i] = sorted(item,key=lambda host:host_dict[host][2])
 ######划分虚拟机########################################################################
 vm_split_step = int(len(vm_cpu_mem)/SPLIT)
-vm_split_list = []
+# vm_split_list = []
 vm_cpu_mem_sorted_keys = list(vm_cpu_mem_sorted.keys())
 vm_cpu_mem_sorted_keys_split = []
 for i in range(SPLIT-1):
@@ -270,14 +270,22 @@ def main():
     index_id = {}
     ITER = 0
     for day in data:
-        for line in day:
-            add_or_del = line.split(',')[0][1:]
-            ID = int(line.split(',')[-1][:-1])
-            if add_or_del == 'add':
-                vm_name = line.split(',')[1].strip()
-                my_hostList.search_and_add(vm_name, ID)
-            else:
-                my_hostList.del_vm(ID)
+        add_require = [item for item in day if item[1:4] == 'add']
+        del_require = [item for item in day if item[1:4] == 'del']
+        add_vm = [(item.split(',')[1].strip(),item.split(',')[2].strip()[:-1]) for item in add_require]
+        del_vm =  [item.split(',')[1][:-1].strip() for item in del_require]
+        add_info = []
+        for idx,vm_info in enumerate(add_vm):
+            add_info.append(vm_info+(idx,))
+
+        #根据虚拟机的cpu+mem定义虚拟机的大小
+        add_info = sorted(add_info,key=lambda vm :vm_dict[vm[0]][0]+vm_dict[vm[0]][1],reverse=True)
+        index_store = [item[2] for item in add_info]
+        for vm in add_info:
+            my_hostList.search_and_add(vm[0],vm[1])
+        for vm in del_vm:
+            my_hostList.del_vm(vm)
+
         start_id = index
         temp = index
         index = len(my_hostList.allHost)
@@ -307,8 +315,10 @@ def main():
                 new_operate.append('('+str(new_index)+')')
             else:
                 new_operate.append('('+str(new_index)+','+' '+line[1]+')')
-
-        out += new_operate
+        temp_operate = list(range(len(new_operate)))
+        for i,idx in enumerate(index_store):
+            temp_operate[idx] = new_operate[i]
+        out += temp_operate
         my_hostList.out.clear()
         ITER +=1
         if TIME:
