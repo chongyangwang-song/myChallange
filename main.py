@@ -3,10 +3,10 @@ import time
 import sys
 from collections import defaultdict
 from collections import OrderedDict
-
+import copy
 start = time.time()
-SERVER = True
-TIME = False
+SERVER = False
+TIME = True
 
 host_dict = {}
 vm_dict = {}
@@ -20,7 +20,7 @@ RATIO = 1  ##使用百分之八十
 SORT_USE_PRICE = True # 是否使用价格排序
 if not SERVER:
 
-    PATH = 'E:\HW_JYTZS\\training-data/training-1.txt'
+    PATH = '/data1/HUAWEI/training-1.txt'
     with open(PATH) as f:
         lines = f.readlines()
 
@@ -156,7 +156,7 @@ class Host:
         self.A_mem = host_dict[name][1] / 2
         self.B_mem = host_dict[name][1] / 2
         self.contains_vm = []
-
+        self.history = []
     def putvm(self, vm_name, vm_id):
         info = vm_dict[vm_name]
         cpu, mem, core = info
@@ -164,12 +164,14 @@ class Host:
             if self.A_cpu >= cpu and self.A_mem >= mem:  # 优先放A节点
                 self.A_cpu -= cpu
                 self.A_mem -= mem
-                self.contains_vm.append((vm_name, vm_id, 'A'))
+                # self.contains_vm.append((vm_name, vm_id, 'A'))
+                # self.history.append(('add',vm_name, vm_id, 'A'))
                 return 'A'
             elif self.B_cpu >= cpu and self.B_mem >= mem:
                 self.B_cpu -= cpu
                 self.B_mem -= mem
-                self.contains_vm.append((vm_name, vm_id, 'B'))
+                # self.contains_vm.append((vm_name, vm_id, 'B'))
+                # self.history.append(('add',vm_name, vm_id, 'B'))
                 return 'B'
             else:
                 return 'NULL'
@@ -179,7 +181,8 @@ class Host:
                 self.B_cpu -= cpu / 2
                 self.A_mem -= mem / 2
                 self.B_mem -= mem / 2
-                self.contains_vm.append((vm_name, vm_id, 'ALL'))
+                # self.contains_vm.append((vm_name, vm_id, 'ALL'))
+                # self.history.append((vm_name, vm_id, 'ALL'))
                 return 'ALL'
             else:
                 return 'NULL'
@@ -206,17 +209,20 @@ class Host:
         if type == 'A':
             self.A_cpu += cpu
             self.A_mem += mem
-            self.contains_vm.remove((vm, id, 'A'))
+            # self.contains_vm.remove((vm, id, 'A'))
+            # self.history.append(('del',vm, id, 'A'))
         elif type == 'B':
             self.B_cpu += cpu
             self.B_mem += mem
-            self.contains_vm.remove((vm, id, 'B'))
+            # self.contains_vm.remove((vm, id, 'B'))
+            # self.history.append(('del', vm, id, 'B'))
         else:
             self.A_cpu += cpu / 2
             self.A_mem += mem / 2
             self.B_cpu += cpu / 2
             self.B_mem += mem / 2
-            self.contains_vm.remove((vm, id, 'ALL'))
+            # self.contains_vm.remove((vm, id, 'ALL'))
+            # self.history.append(('del', vm, id, 'ALL'))
 
 
 class hostList:
@@ -224,9 +230,9 @@ class hostList:
         self.allHost = []
         self.id_info = {}
         self.out = []
-        self.rank_store = []
-        for i in range(SPLIT):
-            self.rank_store.append([])
+        # self.rank_store = []
+        # for i in range(SPLIT):
+        #     self.rank_store.append([])
 
     def addHost(self, vm_name):
         rank = vm_rank[vm_name]
@@ -240,20 +246,55 @@ class hostList:
             if host.available(vm_name):
                 break
         self.allHost.append(host)
-        self.rank_store[rank].append(len(self.allHost) - 1)
+        # self.rank_store[rank].append(len(self.allHost) - 1)
 
-    def search_and_add(self, vm_name, vm_id):
-        if len(self.allHost) == 0:
-            self.addHost(vm_name)
-        rank = vm_rank[vm_name]
-        for i in self.rank_store[rank]:
-            res = self.allHost[i].putvm(vm_name, vm_id)
-            if res != 'NULL':
-                self.upate_out(i, res, vm_id, vm_name)
-                return
-        self.addHost(vm_name)
-        res = self.allHost[-1].putvm(vm_name, vm_id)
-        self.upate_out(len(self.allHost) - 1, res, vm_id, vm_name)
+    def search_and_add(self, add_ifo, start):
+        store = []
+        length = len(self.allHost)
+
+        if length !=0:
+            index = sorted(range(length), key=lambda k: self.allHost[k].A_cpu+self.allHost[k].B_cpu
+                   +self.allHost[k].A_mem+self.allHost[k].B_mem)
+            remove = []
+            for vm in add_ifo:
+                for host_id in range(index):
+                    res = self.allHost[host_id].putvm(vm[0],vm[1])
+                    if res != 'NULL':
+                        self.upate_out(host_id,res,vm[1],vm[0])
+                        remove.append(vm)
+                        store.append(vm[2])
+                        break
+            for item in remove:
+                add_ifo.remove(item)
+
+        while len(add_ifo)!=0:
+            max = add_ifo[0]
+            self.addHost(max[0])
+            id = len(self.allHost) - 1
+            remove = []
+            for vm in add_ifo:
+                res = self.allHost[-1].putvm(vm[0],vm[1])
+                if res != 'NULL':
+                    self.upate_out(id, res, vm[1], vm[0])
+                    remove.append(vm)
+                    store.append(vm[2])
+            for item in remove:
+                add_ifo.remove(item)
+        return store
+
+
+            # index1.clear()
+        # if len(self.allHost) == 0:
+        #     self.addHost(vm_name)
+        # rank = vm_rank[vm_name]
+        # for i in self.rank_store[rank]:
+        #     res = self.allHost[i].putvm(vm_name, vm_id)
+        #     if res != 'NULL':
+        #         self.upate_out(i, res, vm_id, vm_name)
+        #         return
+        # self.addHost(vm_name)
+        # res = self.allHost[-1].putvm(vm_name, vm_id)
+        # self.upate_out(len(self.allHost) - 1, res, vm_id, vm_name)
 
     def upate_out(self, i, AorB, vm_id, vm_name):
         if AorB == 'A':
@@ -277,6 +318,7 @@ def main():
     index = 0
     index_id = {}
     ITER = 0
+    start = 0
     for day in data:
         add_require = [item for item in day if item[1:4] == 'add']
         del_require = [item for item in day if item[1:4] == 'del']
@@ -288,9 +330,9 @@ def main():
 
         # 根据虚拟机的cpu+mem定义虚拟机的大小
         add_info = sorted(add_info, key=lambda vm: vm_dict[vm[0]][0] + vm_dict[vm[0]][1], reverse=True)
-        index_store = [item[2] for item in add_info]
-        for vm in add_info:
-            my_hostList.search_and_add(vm[0], vm[1])
+        # index_store = [item[2] for item in add_info]
+
+        index_store = my_hostList.search_and_add(add_info, start)
         for vm in del_vm:
             my_hostList.del_vm(vm)
 
