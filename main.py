@@ -241,23 +241,28 @@ class hostList:
         # host = Host(host_name)
         if not SORT_USE_PRICE:
             random.shuffle(host_split_list[rank])
-        for host_name in host_split_list[rank]:
+        host_split_list2 = host_split_list[rank][:1]
+        host_split_listmid = host_split_list[rank][1:6]
+        random.shuffle(host_split_listmid)
+        host_split_list3 = host_split_list[rank][6:]
+        host_split_list2.extend(host_split_listmid)
+        host_split_list2.extend(host_split_list3)
+        for host_name in host_split_list2:
             host = Host(host_name)
             if host.available(vm_name):
                 break
         self.allHost.append(host)
         # self.rank_store[rank].append(len(self.allHost) - 1)
 
-    def search_and_add(self, add_ifo, start):
+    def search_and_add(self, add_ifo):
         store = []
         length = len(self.allHost)
-
         if length !=0:
             index = sorted(range(length), key=lambda k: self.allHost[k].A_cpu+self.allHost[k].B_cpu
                    +self.allHost[k].A_mem+self.allHost[k].B_mem)
             remove = []
             for vm in add_ifo:
-                for host_id in range(index):
+                for host_id in index:
                     res = self.allHost[host_id].putvm(vm[0],vm[1])
                     if res != 'NULL':
                         self.upate_out(host_id,res,vm[1],vm[0])
@@ -318,7 +323,7 @@ def main():
     index = 0
     index_id = {}
     ITER = 0
-    start = 0
+    # start = 0
     for day in data:
         add_require = [item for item in day if item[1:4] == 'add']
         del_require = [item for item in day if item[1:4] == 'del']
@@ -332,7 +337,7 @@ def main():
         add_info = sorted(add_info, key=lambda vm: vm_dict[vm[0]][0] + vm_dict[vm[0]][1], reverse=True)
         # index_store = [item[2] for item in add_info]
 
-        index_store = my_hostList.search_and_add(add_info, start)
+        index_store = my_hostList.search_and_add(add_info)
         for vm in del_vm:
             my_hostList.del_vm(vm)
 
